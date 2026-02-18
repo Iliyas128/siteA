@@ -48,6 +48,7 @@ function MainSelector() {
   const [newGamerUserName, setNewGamerUserName] = useState('')
   const [newGamerPassword, setNewGamerPassword] = useState('')
   const [newGamerError, setNewGamerError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
 
   const [createSessionStartDate, setCreateSessionStartDate] = useState('')
   const [createSessionStartTime, setCreateSessionStartTime] = useState('12:00')
@@ -140,6 +141,7 @@ function MainSelector() {
 
   const handleOldPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setAuthLoading(true)
     try {
       const res = await playerLoginOld(passwordInput)
       setToken(res.token)
@@ -149,6 +151,8 @@ function MainSelector() {
       await loadSessions()
     } catch {
       setPasswordError('Неверный пароль')
+    } finally {
+      setAuthLoading(false)
     }
   }
 
@@ -165,6 +169,7 @@ function MainSelector() {
       setNewGamerError('Введите имя и пароль')
       return
     }
+    setAuthLoading(true)
     try {
       const res = await playerRegister(newGamerUserName.trim(), newGamerPassword.trim())
       setToken(res.token)
@@ -175,6 +180,8 @@ function MainSelector() {
     } catch (e2) {
       const msg = e2 instanceof Error ? e2.message : ''
       setNewGamerError(msg === 'username_taken' ? 'Такой UserName уже занят' : 'Ошибка регистрации')
+    } finally {
+      setAuthLoading(false)
     }
   }
 
@@ -186,6 +193,7 @@ function MainSelector() {
 
   const handleAdminPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setAuthLoading(true)
     try {
       const res = await adminLogin(passwordInput)
       setToken(res.token)
@@ -195,6 +203,8 @@ function MainSelector() {
       await loadSessions()
     } catch {
       setPasswordError('Неверный пароль')
+    } finally {
+      setAuthLoading(false)
     }
   }
 
@@ -362,6 +372,7 @@ function MainSelector() {
             onErrorClear={() => setPasswordError('')}
             onSubmit={handleOldPasswordSubmit}
             onClose={() => setModal(null)}
+            loading={authLoading}
           />
         )}
         {modal === 'newGamer' && (
@@ -373,6 +384,7 @@ function MainSelector() {
             error={newGamerError}
             onSubmit={handleNewGamerSubmit}
             onClose={() => setModal(null)}
+            loading={authLoading}
           />
         )}
         {modal === 'adminPassword' && (
@@ -384,6 +396,7 @@ function MainSelector() {
             onErrorClear={() => setPasswordError('')}
             onSubmit={handleAdminPasswordSubmit}
             onClose={() => setModal(null)}
+            loading={authLoading}
           />
         )}
       </>
@@ -656,6 +669,17 @@ function MainSelector() {
   return null
 }
 
+// ————— Спиннер загрузки —————
+function LoaderSpinner({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`inline-block h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-500 ${className}`}
+      role="status"
+      aria-label="Загрузка"
+    />
+  )
+}
+
 // ————— Модальное окно пароля —————
 function PasswordModal({
   title,
@@ -665,6 +689,7 @@ function PasswordModal({
   onErrorClear,
   onSubmit,
   onClose,
+  loading = false,
 }: {
   title: string
   value: string
@@ -673,6 +698,7 @@ function PasswordModal({
   onErrorClear: () => void
   onSubmit: (e: React.FormEvent) => void
   onClose: () => void
+  loading?: boolean
 }) {
   return (
     <div
@@ -680,13 +706,20 @@ function PasswordModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 relative">
+        {loading && (
+          <div className="absolute inset-0 bg-white/80 rounded-lg flex flex-col items-center justify-center z-10">
+            <LoaderSpinner />
+            <p className="mt-3 text-sm text-gray-600">Вход...</p>
+          </div>
+        )}
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-bold">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-black hover:bg-gray-100 rounded text-xl leading-none"
+            disabled={loading}
+            className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-black hover:bg-gray-100 rounded text-xl leading-none disabled:opacity-50"
             title="Закрыть"
             aria-label="Закрыть"
           >
@@ -701,17 +734,18 @@ function PasswordModal({
               onChange(e.target.value)
               onErrorClear()
             }}
-            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            disabled={loading}
+            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 disabled:bg-gray-50"
             placeholder="Пароль"
             autoFocus
           />
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
           <div className="flex gap-2 justify-end mt-4">
-            <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">
+            <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">
               Отмена
             </button>
-            <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-              Войти
+            <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-70 flex items-center gap-2 min-w-[5rem] justify-center">
+              {loading ? <LoaderSpinner className="h-5 w-5 border-2 border-white border-t-transparent" /> : 'Войти'}
             </button>
           </div>
         </form>
@@ -729,6 +763,7 @@ function NewGamerModal({
   error,
   onSubmit,
   onClose,
+  loading = false,
 }: {
   userName: string
   password: string
@@ -737,6 +772,7 @@ function NewGamerModal({
   error: string
   onSubmit: (e: React.FormEvent) => void
   onClose: () => void
+  loading?: boolean
 }) {
   return (
     <div
@@ -744,13 +780,20 @@ function NewGamerModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 relative">
+        {loading && (
+          <div className="absolute inset-0 bg-white/80 rounded-lg flex flex-col items-center justify-center z-10">
+            <LoaderSpinner />
+            <p className="mt-3 text-sm text-gray-600">Регистрация...</p>
+          </div>
+        )}
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-bold">Регистрация (New gamer)</h2>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-black hover:bg-gray-100 rounded text-xl leading-none"
+            disabled={loading}
+            className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-black hover:bg-gray-100 rounded text-xl leading-none disabled:opacity-50"
             title="Закрыть"
             aria-label="Закрыть"
           >
@@ -762,7 +805,8 @@ function NewGamerModal({
             type="text"
             value={userName}
             onChange={(e) => onUserNameChange(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            disabled={loading}
+            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 disabled:bg-gray-50"
             placeholder="UserName"
             autoFocus
           />
@@ -770,16 +814,17 @@ function NewGamerModal({
             type="password"
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            disabled={loading}
+            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 disabled:bg-gray-50"
             placeholder="Пароль"
           />
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
           <div className="flex gap-2 justify-end mt-4">
-            <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">
+            <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">
               Отмена
             </button>
-            <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-              Зарегистрироваться
+            <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-70 flex items-center gap-2 min-w-[8rem] justify-center">
+              {loading ? <LoaderSpinner className="h-5 w-5 border-2 border-white border-t-transparent" /> : 'Зарегистрироваться'}
             </button>
           </div>
         </form>
