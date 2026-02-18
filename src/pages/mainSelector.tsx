@@ -706,13 +706,7 @@ function PasswordModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 relative">
-        {loading && (
-          <div className="absolute inset-0 bg-white/80 rounded-lg flex flex-col items-center justify-center z-10">
-            <LoaderSpinner />
-            <p className="mt-3 text-sm text-gray-600">Вход...</p>
-          </div>
-        )}
+      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4">
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-bold">{title}</h2>
           <button
@@ -780,13 +774,7 @@ function NewGamerModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 relative">
-        {loading && (
-          <div className="absolute inset-0 bg-white/80 rounded-lg flex flex-col items-center justify-center z-10">
-            <LoaderSpinner />
-            <p className="mt-3 text-sm text-gray-600">Регистрация...</p>
-          </div>
-        )}
+      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4">
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-bold">Регистрация (New gamer)</h2>
           <button
