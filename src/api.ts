@@ -42,6 +42,23 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
+/** Декодирует payload JWT без проверки подписи (только для чтения sub/role на клиенте). Возвращает null если токен невалидный или истёк. */
+export function decodeJwtPayload(token: string): { sub: string; role: string } | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padding = payloadBase64.length % 4 ? '='.repeat(4 - (payloadBase64.length % 4)) : ''
+    const json = atob(payloadBase64 + padding)
+    const payload = JSON.parse(json) as { sub?: string; role?: string; exp?: number }
+    if (!payload.sub || !payload.role) return null
+    if (payload.exp != null && payload.exp < Math.floor(Date.now() / 1000)) return null
+    return { sub: payload.sub, role: payload.role }
+  } catch {
+    return null
+  }
+}
+
 export async function playerLoginOld(password: string): Promise<{ token: string; userName: string; role: AuthRole }> {
   return await request('/api/auth/player-login-old', { method: 'POST', body: JSON.stringify({ password }) })
 }

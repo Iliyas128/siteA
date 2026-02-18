@@ -5,6 +5,7 @@ import {
   adminLogin,
   clearToken,
   createSessionApi,
+  decodeJwtPayload,
   deleteSessionApi,
   getAttemptsApi,
   getLeaderboard,
@@ -75,6 +76,19 @@ function MainSelector() {
       setSessionsLoading(false)
     }
   }
+
+  // При загрузке страницы: если в localStorage есть токен — восстанавливаем пользователя и показываем список сессий
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    const payload = decodeJwtPayload(token)
+    if (payload) {
+      setUser({ userName: payload.sub, isAdmin: payload.role === 'admin' })
+      setView('sessions')
+    } else {
+      clearToken()
+    }
+  }, [])
 
   // Возврат с Сайта Г: в URL приходят rate, sessionId, userName — сохраняем попытку один раз и открываем детали сессии
   useEffect(() => {
@@ -425,8 +439,8 @@ function MainSelector() {
             <span className="text-sm text-gray-600">
               {isAdmin ? 'Админ' : 'Игрок'}: <strong>{user?.userName}</strong>
             </span>
-            <button type="button" onClick={handleLogout} className="text-sm text-blue-600 hover:underline">
-              Выйти
+            <button type="button" onClick={handleLogout} className="text-sm text-blue-600 hover:underline" title="Выйти из аккаунта">
+              Выйти из аккаунта
             </button>
           </header>
           <main className="flex-1 min-h-0 p-4 flex flex-col overflow-hidden">
@@ -534,11 +548,16 @@ function MainSelector() {
     return (
       <>
         <div className="h-screen flex flex-col bg-gray-50">
-          <header className="shrink-0 border-b rounded border-gray-200 bg-white px-4 py-3 flex justify-between items-center">
+          <header className="shrink-0 border-b border-gray-200 bg-white px-4 py-3 flex justify-between items-center">
             <button type="button" onClick={handleBackToSessions} className="text-blue-600 hover:underline">
               ← К списку сессий
             </button>
-            <span className="font-medium">{user?.userName}</span>
+            <div className="flex items-center gap-4">
+              <span className="font-medium">{user?.userName}</span>
+              <button type="button" onClick={handleLogout} className="text-sm text-blue-600 hover:underline" title="Выйти из аккаунта">
+                Выйти из аккаунта
+              </button>
+            </div>
           </header>
 
           <main className="flex-1 min-h-0 p-4 overflow-hidden flex gap-4">
