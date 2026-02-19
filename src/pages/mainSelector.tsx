@@ -32,6 +32,18 @@ function formatAttemptDateTime(iso: string): string {
 type View = 'selector' | 'sessions' | 'sessionDetail' | 'siteG'
 type Modal = null | 'oldPassword' | 'newGamer' | 'adminPassword' | 'details' | 'createSession'
 
+const PATH_SELECTOR = '/'
+const PATH_SESSIONS = '/sessions'
+
+function getRouteFromPathname(pathname: string): { view: View; sessionId: number | null } {
+  const normalized = pathname.replace(/\/$/, '') || '/'
+  if (normalized === PATH_SELECTOR) return { view: 'selector', sessionId: null }
+  const sessionsMatch = normalized.match(/^\/sessions\/(\d+)$/)
+  if (sessionsMatch) return { view: 'sessionDetail', sessionId: parseInt(sessionsMatch[1], 10) }
+  if (normalized === PATH_SESSIONS) return { view: 'sessions', sessionId: null }
+  return { view: 'selector', sessionId: null }
+}
+
 function MainSelector() {
   const [view, setView] = useState<View>('selector')
   const [user, setUser] = useState<{ userName: string; isAdmin: boolean } | null>(null)
@@ -77,14 +89,30 @@ function MainSelector() {
     }
   }
 
-  // При загрузке страницы: если в localStorage есть токен — восстанавливаем пользователя и показываем список сессий
+  // Синхронизация с URL: при загрузке и по кнопке «Назад» показываем страницу по пути
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const { view: routeView, sessionId } = getRouteFromPathname(window.location.pathname)
+      setSelectedSessionId(sessionId)
+      setView(routeView)
+    }
+    syncFromUrl()
+    window.addEventListener('popstate', syncFromUrl)
+    return () => window.removeEventListener('popstate', syncFromUrl)
+  }, [])
+
+  // При загрузке: если есть токен — восстанавливаем пользователя; если при этом путь «/» — переходим на /sessions
   useEffect(() => {
     const token = getToken()
     if (!token) return
     const payload = decodeJwtPayload(token)
     if (payload) {
       setUser({ userName: payload.sub, isAdmin: payload.role === 'admin' })
-      setView('sessions')
+      const path = window.location.pathname.replace(/\/$/, '') || '/'
+      if (path === PATH_SELECTOR) {
+        window.history.replaceState({}, '', PATH_SESSIONS)
+        setView('sessions')
+      }
     } else {
       clearToken()
     }
@@ -138,9 +166,9 @@ function MainSelector() {
     void run()
   }, [view, selectedSessionId])
 
-  // Если токен есть и мы на списке сессий — подгрузим сессии (например, после перезагрузки страницы)
+  // Если токен есть и мы на списке сессий или на странице сессии — подгрузим сессии при необходимости
   useEffect(() => {
-    if (view !== 'sessions') return
+    if (view !== 'sessions' && view !== 'sessionDetail') return
     if (!getToken()) return
     if (sessionsLoading) return
     if (sessions.length > 0) return
@@ -161,6 +189,7 @@ function MainSelector() {
       setToken(res.token)
       setUser({ userName: res.userName, isAdmin: false })
       setModal(null)
+      window.history.replaceState({}, '', PATH_SESSIONS)
       setView('sessions')
       await loadSessions()
     } catch {
@@ -189,6 +218,7 @@ function MainSelector() {
       setToken(res.token)
       setUser({ userName: res.userName, isAdmin: false })
       setModal(null)
+      window.history.replaceState({}, '', PATH_SESSIONS)
       setView('sessions')
       await loadSessions()
     } catch (e2) {
@@ -213,6 +243,7 @@ function MainSelector() {
       setToken(res.token)
       setUser({ userName: res.userName, isAdmin: true })
       setModal(null)
+      window.history.replaceState({}, '', PATH_SESSIONS)
       setView('sessions')
       await loadSessions()
     } catch {
@@ -230,6 +261,7 @@ function MainSelector() {
     setDetailsForUser(null)
     setSessions([])
     setLeaderboardState([])
+    window.history.replaceState({}, '', PATH_SELECTOR)
   }
 
   const handleSelectSession = (id: number) => {
@@ -238,12 +270,14 @@ function MainSelector() {
     if (isAdmin) {
       setSelectedSessionId(id)
       setView('sessionDetail')
+      window.history.pushState({}, '', `${PATH_SESSIONS}/${id}`)
       return
     }
     const start = new Date(session.startDate + 'T' + session.startTime).getTime()
     if (start > Date.now()) {
       setSelectedSessionId(id)
       setView('sessionDetail')
+      window.history.pushState({}, '', `${PATH_SESSIONS}/${id}`)
     }
   }
 
@@ -251,6 +285,7 @@ function MainSelector() {
     setSelectedSessionId(null)
     setDetailsForUser(null)
     setView('sessions')
+    window.history.pushState({}, '', PATH_SESSIONS)
   }
 
   const handleDetails = (forUser?: string) => {
@@ -339,6 +374,7 @@ function MainSelector() {
           if (selectedSessionId === id) {
             setSelectedSessionId(null)
             setView('sessions')
+            window.history.pushState({}, '', PATH_SESSIONS)
           }
         } catch {
           // noop
@@ -536,9 +572,19 @@ function MainSelector() {
   // ————— Детали сессии: инфо, лидерборд, персональные результаты, кнопки —————
   if (view === 'sessionDetail' && selectedSessionId) {
     const session = sessions.find((s) => s.id === selectedSessionId)
-    if (!session) {
-      handleBackToSessions()
+    if (!session && sessions.length > 0) {
+      setSelectedSessionId(null)
+      setDetailsForUser(null)
+      setView('sessions')
+      window.history.pushState({}, '', PATH_SESSIONS)
       return null
+    }
+    if (!session) {
+      return (
+        <div className="h-screen flex items-center justify-center bg-gray-50">
+          <p className="text-gray-500">Загрузка сессии...</p>
+        </div>
+      )
     }
     const currentUser = user?.userName
     const me = currentUser ? leaderboard.find((r) => r.userName === currentUser) : undefined
