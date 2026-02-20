@@ -59,8 +59,8 @@ export function decodeJwtPayload(token: string): { sub: string; role: string } |
   }
 }
 
-export async function playerLoginOld(password: string): Promise<{ token: string; userName: string; role: AuthRole }> {
-  return await request('/api/auth/player-login-old', { method: 'POST', body: JSON.stringify({ password }) })
+export async function playerLoginOld(userName: string, password: string): Promise<{ token: string; userName: string; role: AuthRole }> {
+  return await request('/api/auth/player-login-old', { method: 'POST', body: JSON.stringify({ userName, password }) })
 }
 
 export async function adminLogin(password: string): Promise<{ token: string; userName: string; role: AuthRole }> {

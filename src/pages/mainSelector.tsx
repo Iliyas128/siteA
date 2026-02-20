@@ -58,8 +58,13 @@ function MainSelector() {
 
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [oldGamerUserName, setOldGamerUserName] = useState('')
+  const [oldGamerShowPassword, setOldGamerShowPassword] = useState(false)
+  const [sessionToDelete, setSessionToDelete] = useState<number | null>(null)
   const [newGamerUserName, setNewGamerUserName] = useState('')
   const [newGamerPassword, setNewGamerPassword] = useState('')
+  const [newGamerConfirmPassword, setNewGamerConfirmPassword] = useState('')
+  const [newGamerShowPassword, setNewGamerShowPassword] = useState(false)
   const [newGamerError, setNewGamerError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
 
@@ -176,6 +181,8 @@ function MainSelector() {
   }, [view, sessions.length, sessionsLoading])
 
   const handleOldGamerClick = () => {
+    setOldGamerUserName('')
+    setOldGamerShowPassword(false)
     setPasswordInput('')
     setPasswordError('')
     setModal('oldPassword')
@@ -183,9 +190,13 @@ function MainSelector() {
 
   const handleOldPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!oldGamerUserName.trim()) {
+      setPasswordError('Введите имя пользователя')
+      return
+    }
     setAuthLoading(true)
     try {
-      const res = await playerLoginOld(passwordInput)
+      const res = await playerLoginOld(oldGamerUserName.trim(), passwordInput)
       setToken(res.token)
       setUser({ userName: res.userName, isAdmin: false })
       setModal(null)
@@ -193,7 +204,7 @@ function MainSelector() {
       setView('sessions')
       await loadSessions()
     } catch {
-      setPasswordError('Неверный пароль')
+      setPasswordError('Неверное имя пользователя или пароль')
     } finally {
       setAuthLoading(false)
     }
@@ -202,6 +213,8 @@ function MainSelector() {
   const handleNewGamerClick = () => {
     setNewGamerUserName('')
     setNewGamerPassword('')
+    setNewGamerConfirmPassword('')
+    setNewGamerShowPassword(false)
     setNewGamerError('')
     setModal('newGamer')
   }
@@ -210,6 +223,10 @@ function MainSelector() {
     e.preventDefault()
     if (!newGamerUserName.trim() || !newGamerPassword.trim()) {
       setNewGamerError('Введите имя и пароль')
+      return
+    }
+    if (newGamerPassword !== newGamerConfirmPassword) {
+      setNewGamerError('Пароли не совпадают')
       return
     }
     setAuthLoading(true)
@@ -363,24 +380,29 @@ function MainSelector() {
     }
   }
 
-  const handleDeleteSession = (id: number, e: React.MouseEvent) => {
+  const handleDeleteSessionClick = (id: number, e: React.MouseEvent) => {
     e.stopPropagation()
     if (!isAdmin) return
-    if (confirm('Удалить сессию?')) {
-      void (async () => {
-        try {
-          await deleteSessionApi(id)
-          await loadSessions()
-          if (selectedSessionId === id) {
-            setSelectedSessionId(null)
-            setView('sessions')
-            window.history.pushState({}, '', PATH_SESSIONS)
-          }
-        } catch {
-          // noop
+    setSessionToDelete(id)
+  }
+
+  const handleConfirmDeleteSession = () => {
+    const id = sessionToDelete
+    if (id == null) return
+    setSessionToDelete(null)
+    void (async () => {
+      try {
+        await deleteSessionApi(id)
+        await loadSessions()
+        if (selectedSessionId === id) {
+          setSelectedSessionId(null)
+          setView('sessions')
+          window.history.pushState({}, '', PATH_SESSIONS)
         }
-      })()
-    }
+      } catch {
+        // noop
+      }
+    })()
   }
 
   // ————— Экран выбора: Old gamer / New gamer / Admin —————
@@ -388,34 +410,34 @@ function MainSelector() {
     return (
       <>
         <div className="h-screen flex items-center justify-center">
-          <nav className="flex flex-col border border-gray-300 rounded-lg gap-5 p-6 bg-white shadow-md">
+          <nav className="flex flex-col border border-gray-300 rounded-lg gap-5 p-6 bg-white shadow-md max-w-sm w-full mx-4">
             <button
               type="button"
               onClick={handleOldGamerClick}
-              className="bg-blue-400 text-black font-bold w-40 py-2 rounded hover:bg-blue-500"
+              className="bg-blue-400 text-black font-bold py-2 px-4 rounded hover:bg-blue-500 text-center"
             >
-              Old gamer
+              Существующий участник — пройти квест
             </button>
             <button
               type="button"
               onClick={handleNewGamerClick}
-              className="bg-blue-400 text-black font-bold w-40 py-2 rounded hover:bg-blue-500"
+              className="bg-blue-400 text-black font-bold py-2 px-4 rounded hover:bg-blue-500 text-center"
             >
-              New gamer
+              Новый участник — зарегистрироваться
             </button>
             <button
               type="button"
               onClick={handleAdminClick}
-              className="bg-blue-400 text-black font-bold w-40 py-2 rounded hover:bg-blue-500"
+              className="bg-blue-400 text-black font-bold py-2 px-4 rounded hover:bg-blue-500"
             >
-              Admin
+              Админ
             </button>
           </nav>
         </div>
 
         {modal === 'oldPassword' && (
           <PasswordModal
-            title="Введите пароль (Old gamer)"
+            title="Вход (существующий участник)"
             value={passwordInput}
             onChange={setPasswordInput}
             error={passwordError}
@@ -423,15 +445,26 @@ function MainSelector() {
             onSubmit={handleOldPasswordSubmit}
             onClose={() => setModal(null)}
             loading={authLoading}
+            showUserName
+            userName={oldGamerUserName}
+            onUserNameChange={setOldGamerUserName}
+            showPasswordToggle
+            passwordVisible={oldGamerShowPassword}
+            onPasswordVisibleChange={setOldGamerShowPassword}
           />
         )}
         {modal === 'newGamer' && (
           <NewGamerModal
             userName={newGamerUserName}
             password={newGamerPassword}
+            confirmPassword={newGamerConfirmPassword}
+            showPassword={newGamerShowPassword}
             onUserNameChange={setNewGamerUserName}
             onPasswordChange={setNewGamerPassword}
+            onConfirmPasswordChange={setNewGamerConfirmPassword}
+            onShowPasswordChange={setNewGamerShowPassword}
             error={newGamerError}
+            onErrorClear={() => setNewGamerError('')}
             onSubmit={handleNewGamerSubmit}
             onClose={() => setModal(null)}
             loading={authLoading}
@@ -494,11 +527,11 @@ function MainSelector() {
             <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-200 shadow-sm overflow-auto w-full">
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
-                  <tr >
+                  <tr>
                     <th className="py-3 px-4 font-semibold text-gray-700">№ сессии</th>
                     <th className="py-3 px-4 font-semibold text-gray-700">Дата начала</th>
                     <th className="py-3 px-4 font-semibold text-gray-700">Время начала</th>
-                    <th className="py-3 px-4 font-semibold text-gray-700">Описание</th>
+                    <th className="py-3 px-4 font-semibold text-gray-700 text-left">Описание</th>
                     {isAdmin && <th className="w-24" />}
                   </tr>
                 </thead>
@@ -520,25 +553,54 @@ function MainSelector() {
                       const start = new Date(s.startDate + 'T' + s.startTime).getTime()
                       const isUpcoming = start > Date.now()
                       const canSelect = isAdmin || isUpcoming
+                      const isDeleting = sessionToDelete === s.id
                       return (
                         <tr
                           key={s.id}
                           onClick={() => canSelect && handleSelectSession(s.id)}
-                          className={`border-b border-gray-100 ${canSelect ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-60'}`}
+                          className={`border-b border-gray-100 ${canSelect ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-60'} ${isDeleting ? 'bg-amber-100 ring-2 ring-amber-500 ring-inset' : ''}`}
                         >
                           <td className="py-3 px-4">{s.id}</td>
                           <td className="py-3 px-4">{formatSessionDate(s)}</td>
                           <td className="py-3 px-4">{s.startTime}</td>
-                          <td className="py-3 px-4">{s.description}</td>
+                          <td className="py-3 px-4 text-left max-w-[320px]" title={s.description}>
+                            <span className="block truncate">{s.description}</span>
+                          </td>
                           {isAdmin && (
-                            <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteSession(s.id, e)}
-                                className="text-red-600 text-sm hover:underline"
-                              >
-                                Удалить
-                              </button>
+                            <td className="py-3 px-4 align-middle" onClick={(e) => e.stopPropagation()}>
+                              {isDeleting ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500 whitespace-nowrap">Удалить?</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleConfirmDeleteSession()
+                                    }}
+                                    className="px-2 py-1 text-xs font-medium rounded bg-red-600 text-white hover:bg-red-700"
+                                  >
+                                    Да
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSessionToDelete(null)
+                                    }}
+                                    className="px-2 py-1 text-xs font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                                  >
+                                    Нет
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteSessionClick(s.id, e)}
+                                  className="text-red-600 text-sm hover:underline"
+                                >
+                                  Удалить
+                                </button>
+                              )}
                             </td>
                           )}
                         </tr>
@@ -588,8 +650,9 @@ function MainSelector() {
     }
     const currentUser = user?.userName
     const me = currentUser ? leaderboard.find((r) => r.userName === currentUser) : undefined
+    const hasPassedQuest = !!me
     const myRate = me?.rate ?? 0
-    const myRank = me?.rank ?? (currentUser ? leaderboard.length + 1 : 0)
+    const myRank = me?.rank ?? 0
 
     return (
       <>
@@ -638,10 +701,10 @@ function MainSelector() {
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 bg-gray-50">
                       <tr>
-                        <th className="py-2 px-4 font-semibold text-gray-700">№</th>
-                        <th className="py-2 px-4 font-semibold text-gray-700">UserName</th>
-                        <th className="py-2 px-4 font-semibold text-gray-700">Rate</th>
-                        {isAdmin && <th className="w-24" />}
+                        <th className="py-2 px-4 font-semibold text-gray-700 text-left">№</th>
+                        <th className="py-2 px-4 font-semibold text-gray-700 text-left">UserName</th>
+                        <th className="py-2 px-4 font-semibold text-gray-700 text-left">Rate</th>
+                        {isAdmin && <th className="w-24 text-left" />}
                       </tr>
                     </thead>
                     <tbody>
@@ -660,11 +723,11 @@ function MainSelector() {
                       ) : (
                         leaderboard.map((r) => (
                           <tr key={r.userName} className="border-b border-gray-100">
-                            <td className="py-2 px-4">{r.rank}</td>
-                            <td className="py-2 px-4">{r.userName}</td>
-                            <td className="py-2 px-4">{r.rate}</td>
+                            <td className="py-2 px-4 text-left">{r.rank}</td>
+                            <td className="py-2 px-4 text-left">{r.userName}</td>
+                            <td className="py-2 px-4 text-left">{r.rate}</td>
                             {isAdmin && (
-                              <td className="py-2 px-4">
+                              <td className="py-2 px-4 text-left">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -686,16 +749,22 @@ function MainSelector() {
               </div>
             </div>
 
-            {/* Правая часть: персональные результаты + кнопки (для игрока) — на всю высоту */}
+            {/* Правая часть: персональные результаты, под ними кнопки «Подробности» и «Пройти квест» */}
             {currentUser && !isAdmin && (
-              <div className="w-72 shrink-0 flex flex-col min-h-0">
-                <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-200 p-4 shadow-sm flex flex-col w-full">
+              <div className="w-72 shrink-0 flex flex-col gap-2">
+                <div className="shrink-0 bg-white rounded-lg border border-gray-200 p-4 shadow-sm w-full">
                   <p className="text-xs text-gray-500 mb-2">Персональные результаты {currentUser}</p>
                   <p className="font-medium">{currentUser}</p>
-                  <p className="text-sm mt-2">№ = {myRank}</p>
-                  <p className="text-sm">Rate = {myRate}</p>
+                  {hasPassedQuest ? (
+                    <>
+                      <p className="text-sm mt-2">№ = {myRank}</p>
+                      <p className="text-sm">Rate = {myRate}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm mt-2 text-gray-600">Вы ни разу не проходили квест в этой сессии</p>
+                  )}
                 </div>
-                <div className="shrink-0 flex flex-col gap-2 pt-4">
+                <div className="shrink-0 flex flex-col gap-2">
                   <button
                     type="button"
                     onClick={() => handleDetails()}
@@ -745,7 +814,7 @@ function LoaderSpinner({ className = '' }: { className?: string }) {
   )
 }
 
-// ————— Модальное окно пароля —————
+// ————— Модальное окно пароля (и при Old gamer — имя пользователя + пароль + показать пароль) —————
 function PasswordModal({
   title,
   value,
@@ -755,6 +824,12 @@ function PasswordModal({
   onSubmit,
   onClose,
   loading = false,
+  showUserName = false,
+  userName = '',
+  onUserNameChange,
+  showPasswordToggle = false,
+  passwordVisible = false,
+  onPasswordVisibleChange,
 }: {
   title: string
   value: string
@@ -764,7 +839,14 @@ function PasswordModal({
   onSubmit: (e: React.FormEvent) => void
   onClose: () => void
   loading?: boolean
+  showUserName?: boolean
+  userName?: string
+  onUserNameChange?: (v: string) => void
+  showPasswordToggle?: boolean
+  passwordVisible?: boolean
+  onPasswordVisibleChange?: (v: boolean) => void
 }) {
+  const passwordInputType = passwordVisible ? 'text' : 'password'
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -785,9 +867,24 @@ function PasswordModal({
             ×
           </button>
         </div>
-        <form onSubmit={onSubmit} className="p-6">
+        <form onSubmit={onSubmit} className="p-6" autoComplete="off">
+          {showUserName && (
+            <input
+              type="text"
+              value={userName}
+              onChange={(e) => {
+                onUserNameChange?.(e.target.value)
+                onErrorClear()
+              }}
+              disabled={loading}
+              className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 disabled:bg-gray-50"
+              placeholder="Имя пользователя (UserName)"
+              autoComplete="username"
+              autoFocus
+            />
+          )}
           <input
-            type="password"
+            type={passwordInputType}
             value={value}
             onChange={(e) => {
               onChange(e.target.value)
@@ -796,8 +893,21 @@ function PasswordModal({
             disabled={loading}
             className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 disabled:bg-gray-50"
             placeholder="Пароль"
-            autoFocus
+            autoComplete={showUserName ? 'current-password' : 'off'}
+            autoFocus={!showUserName}
           />
+          {showPasswordToggle && (
+            <label className="flex items-center gap-2 mb-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={passwordVisible}
+                onChange={(e) => onPasswordVisibleChange?.(e.target.checked)}
+                disabled={loading}
+                className="rounded border-gray-300"
+              />
+              <span className="text-sm text-gray-700">Показать пароль</span>
+            </label>
+          )}
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
           <div className="flex gap-2 justify-end mt-4">
             <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">
@@ -817,22 +927,33 @@ function PasswordModal({
 function NewGamerModal({
   userName,
   password,
+  confirmPassword,
+  showPassword,
   onUserNameChange,
   onPasswordChange,
+  onConfirmPasswordChange,
+  onShowPasswordChange,
   error,
+  onErrorClear,
   onSubmit,
   onClose,
   loading = false,
 }: {
   userName: string
   password: string
+  confirmPassword: string
+  showPassword: boolean
   onUserNameChange: (v: string) => void
   onPasswordChange: (v: string) => void
+  onConfirmPasswordChange: (v: string) => void
+  onShowPasswordChange: (v: boolean) => void
   error: string
+  onErrorClear: () => void
   onSubmit: (e: React.FormEvent) => void
   onClose: () => void
   loading?: boolean
 }) {
+  const inputType = showPassword ? 'text' : 'password'
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -853,24 +974,54 @@ function NewGamerModal({
             ×
           </button>
         </div>
-        <form onSubmit={onSubmit} className="p-6">
+        <form onSubmit={onSubmit} className="p-6" autoComplete="off">
           <input
             type="text"
             value={userName}
-            onChange={(e) => onUserNameChange(e.target.value)}
+            onChange={(e) => {
+              onUserNameChange(e.target.value)
+              onErrorClear()
+            }}
             disabled={loading}
             className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 disabled:bg-gray-50"
             placeholder="UserName"
+            autoComplete="username"
             autoFocus
           />
           <input
-            type="password"
+            type={inputType}
             value={password}
-            onChange={(e) => onPasswordChange(e.target.value)}
+            onChange={(e) => {
+              onPasswordChange(e.target.value)
+              onErrorClear()
+            }}
             disabled={loading}
             className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 disabled:bg-gray-50"
             placeholder="Пароль"
+            autoComplete="new-password"
           />
+          <input
+            type={inputType}
+            value={confirmPassword}
+            onChange={(e) => {
+              onConfirmPasswordChange(e.target.value)
+              onErrorClear()
+            }}
+            disabled={loading}
+            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60 disabled:bg-gray-50"
+            placeholder="Повторите пароль"
+            autoComplete="new-password"
+          />
+          <label className="flex items-center gap-2 mb-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showPassword}
+              onChange={(e) => onShowPasswordChange(e.target.checked)}
+              disabled={loading}
+              className="rounded border-gray-300"
+            />
+            <span className="text-sm text-gray-700">Показать пароль</span>
+          </label>
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
           <div className="flex gap-2 justify-end mt-4">
             <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">
