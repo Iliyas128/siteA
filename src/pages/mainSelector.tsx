@@ -60,6 +60,7 @@ function MainSelector() {
   const [passwordError, setPasswordError] = useState('')
   const [oldGamerUserName, setOldGamerUserName] = useState('')
   const [oldGamerShowPassword, setOldGamerShowPassword] = useState(false)
+  const [adminShowPassword, setAdminShowPassword] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<number | null>(null)
   const [newGamerUserName, setNewGamerUserName] = useState('')
   const [newGamerPassword, setNewGamerPassword] = useState('')
@@ -149,7 +150,17 @@ function MainSelector() {
       if (userNameParam) setUser({ userName: decodeURIComponent(userNameParam), isAdmin: false })
       setSelectedSessionId(sid)
       setView('sessionDetail')
-      if (token) await loadSessions()
+      if (token) {
+        await loadSessions()
+        // Обновляем лидерборд после возврата с квеста
+        setLeaderboardLoading(true)
+        try {
+          const rows = await getLeaderboard(sid)
+          setLeaderboardState(rows)
+        } finally {
+          setLeaderboardLoading(false)
+        }
+      }
 
       window.history.replaceState({}, '', window.location.pathname + window.location.hash)
     }
@@ -248,6 +259,7 @@ function MainSelector() {
 
   const handleAdminClick = () => {
     setPasswordInput('')
+    setAdminShowPassword(false)
     setPasswordError('')
     setModal('adminPassword')
   }
@@ -284,13 +296,23 @@ function MainSelector() {
   const handleSelectSession = (id: number) => {
     const session = sessions.find((s) => s.id === id)
     if (!session) return
+    const start = new Date(session.startDate + 'T' + session.startTime).getTime()
+    const isCompleted = start <= Date.now()
+    
     if (isAdmin) {
       setSelectedSessionId(id)
       setView('sessionDetail')
       window.history.pushState({}, '', `${PATH_SESSIONS}/${id}`)
       return
     }
-    const start = new Date(session.startDate + 'T' + session.startTime).getTime()
+    
+    // Для обычных игроков: если сессия завершена — показываем сообщение
+    if (isCompleted) {
+      alert('Сессия завершилась')
+      return
+    }
+    
+    // Сессия еще не началась — можно открыть
     if (start > Date.now()) {
       setSelectedSessionId(id)
       setView('sessionDetail')
@@ -480,6 +502,9 @@ function MainSelector() {
             onSubmit={handleAdminPasswordSubmit}
             onClose={() => setModal(null)}
             loading={authLoading}
+            showPasswordToggle
+            passwordVisible={adminShowPassword}
+            onPasswordVisibleChange={setAdminShowPassword}
           />
         )}
       </>
@@ -552,13 +577,16 @@ function MainSelector() {
                     allSessions.map((s) => {
                       const start = new Date(s.startDate + 'T' + s.startTime).getTime()
                       const isUpcoming = start > Date.now()
+                      const isCompleted = start <= Date.now()
                       const canSelect = isAdmin || isUpcoming
                       const isDeleting = sessionToDelete === s.id
+                      // Раскраска: зеленый для открытых (будущих), красный для завершенных
+                      const rowColorClass = isCompleted ? 'bg-red-50 hover:bg-red-100' : 'bg-green-50 hover:bg-green-100'
                       return (
                         <tr
                           key={s.id}
                           onClick={() => canSelect && handleSelectSession(s.id)}
-                          className={`border-b border-gray-100 ${canSelect ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-60'} ${isDeleting ? 'bg-amber-100 ring-2 ring-amber-500 ring-inset' : ''}`}
+                          className={`border-b border-gray-100 ${canSelect ? `${rowColorClass} cursor-pointer` : 'opacity-60'} ${isDeleting ? 'bg-amber-100 ring-2 ring-amber-500 ring-inset' : ''}`}
                         >
                           <td className="py-3 px-4">{s.id}</td>
                           <td className="py-3 px-4">{formatSessionDate(s)}</td>
@@ -689,7 +717,7 @@ function MainSelector() {
                 </div>
                 <div>
                   <span className="text-gray-500 text-sm block mb-1">Текстовое описание сессии</span>
-                  <p className="text-gray-800">{session.description}</p>
+                  <p className="text-gray-800 px-10 text-left break-words">{session.description}</p>
                 </div>
               </div>
 
